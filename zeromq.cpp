@@ -58,11 +58,60 @@ bool send(string const& msg) {
 	}
 }
 
-bool setupConf() {
+template<class T>
+T sendS(string const& msg) {
+	zmq::message_t request (msg.size());
+   memcpy (request.data (), msg.c_str(), msg.size());
+   //std::cout << "Sending " << msg << std::endl;
+   socket.send (request);
+
+   //  Get the reply.
+   zmq::message_t reply;
+   while(true) {
+		try {
+			socket.recv (&reply);
+			string rpl = string(static_cast<char*>(reply.data()), reply.size());
+			std::stringstream sstream(rpl);
+			T res;
+			sstream >> res;
+			//std::cout << "Received response: " << rpl << std::endl;
+			return res;
+		}
+		catch(zmq::error_t& e) {
+			//std::cout << "W: interrupt received, proceeding…" << std::endl;
+		}
+	}
+}
+
+template<>
+string sendS(string const& msg) {
+	zmq::message_t request (msg.size());
+   memcpy (request.data (), msg.c_str(), msg.size());
+   //std::cout << "Sending " << msg << std::endl;
+   socket.send (request);
+
+   //  Get the reply.
+   zmq::message_t reply;
+   while(true) {
+		try {
+			socket.recv (&reply);
+			string rpl = string(static_cast<char*>(reply.data()), reply.size());
+			//std::cout << "Received response: " << rpl << std::endl;
+			return rpl;
+		}
+		catch(zmq::error_t& e) {
+			//std::cout << "W: interrupt received, proceeding…" << std::endl;
+		}
+	}
+}
+
+bool setupConn() {
 	//  Prepare our context and socket    
    std::cout << "Connecting to simulation server" << std::endl;
    socket.connect ("tcp://localhost:5556");
+}
 
+bool setupConf() {
 	return send("setupConf");
 }
 
@@ -117,14 +166,14 @@ bool predA(
 	}
 
 	ss.str("");
-	ss << "predA:" << predId;
+	ss << "predA:" << predId << ":" << agentId;
 	return send(ss.str());
 }
 
-size_t getNumReps() { return 10; }
-size_t getNumAgents() { return 10; }
-size_t getNumTicks() { return 100; }
+size_t getNumReps() { size_t nReps = sendS<size_t>("numReps"); cout << "Num. replications: " << nReps << endl << flush; return nReps; }
+size_t getNumAgents() { size_t nAgents = sendS<size_t>("numAgents"); cout << "Num. agents: " << nAgents << endl << flush; return nAgents; }
+size_t getNumTicks() { size_t nTicks = sendS<size_t>("numTicks"); cout << "Num. ticks: " << nTicks << endl << flush; return nTicks; }
 size_t getFragmentSize() { return getNumTicks(); }
-const char* getFormula() { return "FinallyS (PredS 0)"; }
+const char* getFormula() { string formula = sendS<string>("formula"); cout << "Formula: " << formula << endl << flush; return formula.c_str(); } //{ return "FinallyS (PredS 0)"; }
 
 

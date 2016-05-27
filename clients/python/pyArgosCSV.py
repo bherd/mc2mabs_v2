@@ -1,45 +1,89 @@
+#
+# Copyright (c) 2016 Benjamin C. Herd.
+#
+# This file is part of MC2MABS.
+#
+# MC2MABS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# MC2MABS is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with MC2MABS. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import zmq
 import sys
 import os
 
-currentIndex = 0
-files = []
+currentRep = 0
+currentTick = 0
+traces = []
+
+numAgents = 20
+numReps = 100
+numTicks = 1000
 
 def handleSetupMsg(msg, socket):
+	global currentTick
+	global currentRep
+	if msg == "setupConf":
+		currentRep = 0
+	elif msg == "setupRun":
+		currentTick = 0
 	socket.send_string("true")
 
 def handleTearDownMsg(msg, socket):
+	global currentRep
+	if msg == "tearDownRun":
+		currentRep += 1
 	socket.send_string("true")
 
 def handleTickMsg(msg, socket):
-	global currentIndex
-	currentIndex += 1
+	global currentTick
+	currentTick += 1
 	socket.send_string("true")
 
 def handlePredPMsg(msg, socket):
 	idx = msg.split(":")[1]
-	if idx == "0": # check whether robot is resting
-		state = files[currentIndex]
-		res = state.split(";")[1] == "R"
-		print "Result: %b" % (b)
-		socket.send_string("%b" % res)
-	socket.send_string("false")	
+	if idx == "0": # predicate 1: all robots are resting
+		systemState = traces[currentRep][currentTick].strip(",\n").split(",")
+		robotStates = [ robotState.strip("()\\n").split(";")[0] for robotState in systemState ]
+		res = (len(robotStates) == numAgents)
+		if res:
+			socket.send_string("true")
+		else:
+			socket.send_string("false")
 
 def handlePredAMsg(msg, socket):
-	socket.send_string("false")
+	idx = msg.split(":")[1]
+	agentId = int(msg.split(":")[2])
+	if idx == "0": # check whether given robot is resting
+		systemState = traces[currentRep][currentTick].strip(",\n").split(",")
+		robotStates = [ robotState.strip("()\\n").split(";")[0] for robotState in systemState ]
+		res = (robotStates[agentId] == 'H')
+		if res:
+			socket.send_string("true")
+		else:
+			socket.send_string("false")
 
 def handleNumRepsMsg(msg, socket):
-	socket.send_string("%d" % (10))
+	socket.send_string("%d" % (numReps))
 
 def handleNumAgentsMsg(msg, socket):
-	socket.send_string("%d" % (10))
+	socket.send_string("%d" % (numAgents))
 
 def handleNumTicksMsg(msg, socket):
-	socket.send_string("%d" % (10))
+	socket.send_string("%d" % (numTicks))
 
 def handleFormulaMsg(msg, socket):
-	f = "FinallyS (PredS 0)"
+	#f = "FinallyS (PredS 0)"
+	f = "ForAgent (Just 1) (FinallyA (PredA 0))"
 	socket.send_string(f)
 
 def setupConnection():
@@ -86,14 +130,23 @@ def handleMessages(socket):
 			socket.send_string("false")	
 
 def readDataFiles(cwd):
-	files = filter(lambda f: f.startswith("foraging_"), os.listdir(cwd))
+	files = [ "%s/%s" % (cwd,f) for f in filter(lambda f: f.startswith("foraging_"), os.listdir(cwd)) ]
 	return files
 
+def readTrace(file):
+	f = open(file,'r')
+	lines = f.readlines()
+	return lines
+
+def readTraces(files):
+	return map(readTrace, files)
+
 def main():
-	global files
+	global traces
 	# Reading data files
-	cwd = "/home/bherd/repo/argos3-examples"
+	cwd = "/home/ben/repo/argos3-examples"
 	files = readDataFiles(cwd)
+	traces = readTraces(files)
 	print "%d files found." % len(files)
 	# Setting up connection
 	print "Setting up connection ...",

@@ -34,6 +34,7 @@
 > import Foreign.C.Types
 > import Foreign.C.String
 
+> foreign import ccall "setupConn"       c_setupConn       :: IO Bool
 > foreign import ccall "getNumReps"      c_getNumReps      :: IO Int
 > foreign import ccall "getNumAgents"    c_getNumAgents    :: IO Int
 > foreign import ccall "getNumTicks"     c_getNumTicks     :: IO Int
@@ -51,7 +52,8 @@ SETUP FUNCTIONS
 
 MAIN FUNCTION
 
-> main = do nTicks <- c_getNumTicks
+> main = do setup <- c_setupConn
+>           nTicks <- c_getNumTicks
 >           nAgents <- c_getNumAgents
 >           fragmentSize <- c_getFragmentSize
 >           nReps <- c_getNumReps

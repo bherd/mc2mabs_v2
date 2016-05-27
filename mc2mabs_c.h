@@ -4,6 +4,8 @@ extern "C" {
 	#include <stdlib.h>
 	#include <time.h>
 
+	extern bool setupConn();	
+
 	extern bool _setupConf();
 	bool setupConf();
 	extern bool _setupRun();
